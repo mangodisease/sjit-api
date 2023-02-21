@@ -1,0 +1,11 @@
+POST http://localhost:5000/insert
+Content-Type: application/json
+
+{
+    "col": "teachers",
+    "data": {
+        "name": "Daryl Cabagay",
+        "designation": "Instructor I",
+        "description": "Part-Time"
+    }
+}
