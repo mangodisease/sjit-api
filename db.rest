@@ -9,3 +9,18 @@ Content-Type: application/json
         "description": "Part-Time"
     }
 }
+###
+POST http://localhost:5000/insert
+Content-Type: application/json
+
+{
+    "col": "class_schedule",
+    "data": {
+        "subject": "Science",
+        "description": "Just a subject",
+        "course": "STEM",
+        "teacher": "63f51dfbe895e37270c6c45b",
+        "days": ["Mon", "Wed", "Fri"],
+        "time": ["10:30 AM", "12:00 PM"]
+    }
+}
