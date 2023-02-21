@@ -86,6 +86,7 @@ app.post("/add-student", async (req, res) => {
     const File1 = req.files.File.tempFilePath
     const val = req.body
     let result = await uploadLabeledImages([File1]);
+    console.log(result)
     if (result.length !== 0) {
       //save to database
       const data = new db.students({
