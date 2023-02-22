@@ -5,6 +5,7 @@ const { Canvas, Image } = require("canvas");
 const canvas = require("canvas");
 const fileUpload = require("express-fileupload");
 const moment = require("moment");
+const bcrypt = require("bcrypt")
 
 const db = require("./db")
 
@@ -80,26 +81,55 @@ async function getDescriptorsFromDB(image) {
   return results;
 }
 
+app.post("/login", async (req, res)=>{
+  try {
+    const val = req.body
+    const username = val.username
+    const password = val.password
+    const user = await db.users.findOne({ username: username })
+    .select(" -__v -createdAt -updatedAt")
+    .populate("teacher").populate("student")
+    .lean()
+    console.log(user)
+    if(user!==undefined){
+      //bcrypt comapre
+      if(bcrypt.compareSync(password, user.password)){
+        res.status(200).json({ login: true, msg: "Successfuly Login", user: user })
+      } else {
+        res.status(201).json({ login: false, msg: "Incorrect Password", user: null })
+      }
+      
+    } else {
+      res.status(201).json({ login: false, msg: "Invalid username!", user: null })
+    }
+  } catch (err) {
+    console.log(err.message)
+    res.status(500)
+  }
+})
 
 app.post("/add-student", async (req, res) => {
   try {
-    const File1 = req.files.File.tempFilePath
+    const File = req.files.File.tempFilePath
     const val = req.body
-    let result = await uploadLabeledImages([File1]);
-    console.log(result)
+    let result = await uploadLabeledImages([File])
     if (result.length !== 0) {
       //save to database
       const data = new db.students({
+        username: val.name.replaceAll(" ", "").toLowerCase(),
+        password: "$2a$12$foRhnB/Dp3k6KAGSunWcy.Yy8zF4emUarKGrX62c9p1dqKJbaPoCu", //password
         name: val.name,
         course: val.course,
         year_level: val.year_level,
         birthdate: val.birthdate,
         parent: val.parent,
         parent_contact: val.parent_contact,
-        descriptions: result
+        descriptions: result,
+        //image: File
       })
-      await data.save()
-      res.json({ message: "Face data stored successfully" })
+      const n = await data.save()
+      console.log(n)
+      res.json({ message: "Face data stored successfully", data: n })
     } else {
       res.json({ message: "Something went wrong, please try again." })
 

@@ -6,6 +6,7 @@ const enrolled = new mongoose.Schema({
     teacher: {type: mongoose.Schema.Types.ObjectId, ref: "teachers"}
 },
     {
+        strict: false,
         timestamps: { createdAt: 'createdAt' },
         collection: 'enrolled',
     }

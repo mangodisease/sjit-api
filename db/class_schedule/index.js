@@ -9,6 +9,7 @@ const class_schedule = new mongoose.Schema({
     time: { type: [String], required: true }
 },
     {
+        strict: false,
         timestamps: { createdAt: 'createdAt' },
         collection: 'class_schedule',
     }

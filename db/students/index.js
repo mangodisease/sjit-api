@@ -1,6 +1,15 @@
 const mongoose = require('mongoose')
 
 const students = new mongoose.Schema({
+    username: {
+        type: String,
+        required: true,
+        unique: true,
+    },
+    password: {
+        type: String,
+        required: true
+    },
     name: {
         type: String,
         required: true,
@@ -11,12 +20,14 @@ const students = new mongoose.Schema({
     birthdate: { type: String, required: true },
     parent: { type: String, required: true },
     parent_contact: { type: String, required: true },
+    image: { type: Buffer },
     descriptions: {
         type: Array,
         required: true,
     },
 },
     {
+        strict: false,
         timestamps: { createdAt: 'createdAt' },
         collection: 'students',
     }

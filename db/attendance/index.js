@@ -9,6 +9,7 @@ const attendance = new mongoose.Schema({
     remarks: { type: String, required: true, default: "PRESENT" },
 },
     {
+        strict: false,
         timestamps: { createdAt: 'createdAt' },
         collection: 'attendance',
     }

@@ -24,3 +24,25 @@ Content-Type: application/json
         "time": ["10:30 AM", "12:00 PM"]
     }
 }
+###
+
+POST http://localhost:5000/insert
+Content-Type: application/json
+
+{
+    "col": "users",
+    "data": {
+        "username": "admin",
+        "password": "$2a$12$foRhnB/Dp3k6KAGSunWcy.Yy8zF4emUarKGrX62c9p1dqKJbaPoCu",
+        "isAdmin": true
+    }
+}
+###
+
+POST http://localhost:5000/login
+Content-Type: application/json
+
+{
+    "username": "admin",
+    "password": "password"
+}
