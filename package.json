@@ -16,6 +16,7 @@
     "@tensorflow/tfjs-node": "^4.2.0",
     "bcrypt": "^5.1.0",
     "canvas": "^2.8.0",
+    "cors": "^2.8.5",
     "express": "^4.17.1",
     "express-fileupload": "^1.2.1",
     "face-api.js": "^0.22.2",

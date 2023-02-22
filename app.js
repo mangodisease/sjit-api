@@ -6,6 +6,7 @@ const canvas = require("canvas");
 const fileUpload = require("express-fileupload");
 const moment = require("moment");
 const bcrypt = require("bcrypt")
+const cors = require("cors")
 
 const db = require("./db")
 
@@ -18,7 +19,9 @@ app.use(
     useTempFiles: true,
   })
 );
+app.use(cors())
 app.use(express.json())
+
 async function LoadModels() {
   // Load the models
   // __dirname gives the root directory of the server
@@ -116,8 +119,8 @@ app.post("/add-student", async (req, res) => {
     if (result.length !== 0) {
       //save to database
       const data = new db.students({
-        username: val.name.replaceAll(" ", "").toLowerCase(),
-        password: "$2a$12$foRhnB/Dp3k6KAGSunWcy.Yy8zF4emUarKGrX62c9p1dqKJbaPoCu", //password
+        //username: val.name.replaceAll(" ", "").toLowerCase(),
+        //password: "$2a$12$foRhnB/Dp3k6KAGSunWcy.Yy8zF4emUarKGrX62c9p1dqKJbaPoCu", //password
         name: val.name,
         course: val.course,
         year_level: val.year_level,
@@ -169,7 +172,7 @@ app.post("/attendance-check", async (req, res) => {
         msg =  `Successfully Participated!`
       }
       const conf = rslt._distance
-      const studInfo = await db.students.findOne({ _id: _id }).select('_id').lean()
+      const studInfo = await db.students.findOne({ _id: _id }).select('-_id').lean()
       console.log(studInfo)
       const data = new db.attendance({
         timeIn: timeIn,
@@ -180,6 +183,28 @@ app.post("/attendance-check", async (req, res) => {
       })
       await data.save()
       res.json({ timeIn: timeIn, remark: remarks, confidence: conf !== 0? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
+    } else {
+      res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
+    }
+    
+  } catch (err) {
+    console.log(err.message)
+    res.status(500)
+  }
+});
+
+app.post("/test-attendance", async (req, res) => {
+  try {
+    const File = req.files.File.tempFilePath;
+
+    let result = await getDescriptorsFromDB(File);
+    if(result.length!==0){
+      const rslt = result[0]
+      const _id = rslt._label
+      const conf = rslt._distance
+      const studInfo = await db.students.findOne({ _id: _id }).select('name').lean()
+      
+      res.json({ name: studInfo.name, confidence: conf !== 0? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
     } else {
       res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
     }
