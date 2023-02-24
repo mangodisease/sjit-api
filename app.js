@@ -132,14 +132,14 @@ app.post("/add-student", async (req, res) => {
       })
       const n = await data.save()
       console.log(n)
-      res.json({ message: "Face data stored successfully", data: n })
+      res.json({ msg: "Student Successfully Added", isAdded: true })
     } else {
-      res.json({ message: "Something went wrong, please try again." })
+      res.json({ msg: "Something went wrong, please try again.", isAdded: false })
 
     }
   } catch (err) {
     console.log(err.message)
-    res.status(500).json({ err: err.message })
+    res.status(500).json({ err: err.message, isAdded: false })
   }
 })
 
