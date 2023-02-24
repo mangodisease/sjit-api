@@ -114,7 +114,7 @@ app.post("/login", async (req, res)=>{
 app.post("/add-student", async (req, res) => {
   try {
     const File = req.files.File.tempFilePath
-    const val = req.body
+    const val = JSON.parse(req.body.body)
     let result = await uploadLabeledImages([File])
     if (result.length !== 0) {
       //save to database
@@ -137,6 +137,19 @@ app.post("/add-student", async (req, res) => {
       res.json({ message: "Something went wrong, please try again." })
 
     }
+  } catch (err) {
+    console.log(err.message)
+    res.status(500).json({ err: err.message })
+  }
+})
+
+app.post("/test-add-student", async (req, res) => {
+  try {
+    const File = req.files.File.tempFilePath
+    const val = JSON.parse(req.body.body)
+    console.log(File)
+    console.log(val)
+    res.json({ body: val})
   } catch (err) {
     console.log(err.message)
     res.status(500).json({ err: err.message })
