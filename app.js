@@ -19,6 +19,10 @@ app.use(
     useTempFiles: true,
   })
 );
+
+app.use(express.json({limit: '50mb'}));
+//app.use(express.urlencoded({limit: '50mb'}));
+
 app.use(cors())
 app.use(express.json())
 
@@ -84,28 +88,22 @@ async function getDescriptorsFromDB(image) {
   return results;
 }
 
-app.post("/login", async (req, res)=>{
+app.post("/login", async (req, res) => {
   try {
     const val = req.body
+    console.log(val)
     const username = val.username
     const password = val.password
-    const user = await db.users.findOne({ username: username })
-    .select(" -__v -createdAt -updatedAt")
-    .populate("teacher").populate("student")
-    .lean()
+    const col = val.col
+    console.log(col)
+    const user = await db[col].findOne({ username: username, password: password })
     console.log(user)
-    if(user!==undefined){
-      //bcrypt comapre
-      if(bcrypt.compareSync(password, user.password)){
-        res.status(200).json({ login: true, msg: "Successfuly Login", user: user })
-      } else {
-        res.status(201).json({ login: false, msg: "Incorrect Password", user: null })
-      }
-      
+    if (user !== undefined) {
+      res.status(200).json({ login: true, msg: "Successfuly Login", user: user })
     } else {
       res.status(201).json({ login: false, msg: "Invalid username!", user: null })
     }
-  } catch (err) {
+  } catch (err) { 
     console.log(err.message)
     res.status(500)
   }
@@ -118,18 +116,8 @@ app.post("/add-student", async (req, res) => {
     let result = await uploadLabeledImages([File])
     if (result.length !== 0) {
       //save to database
-      const data = new db.students({
-        //username: val.name.replaceAll(" ", "").toLowerCase(),
-        //password: "$2a$12$foRhnB/Dp3k6KAGSunWcy.Yy8zF4emUarKGrX62c9p1dqKJbaPoCu", //password
-        name: val.name,
-        course: val.course,
-        year_level: val.year_level,
-        birthdate: val.birthdate,
-        parent: val.parent,
-        parent_contact: val.parent_contact,
-        descriptions: result,
-        //image: File
-      })
+      val.descriptions = result
+      const data = new db.students(val)
       const n = await data.save()
       console.log(n)
       res.json({ msg: "Student Successfully Added", isAdded: true })
@@ -143,18 +131,35 @@ app.post("/add-student", async (req, res) => {
   }
 })
 
-app.post("/test-add-student", async (req, res) => {
+app.post("/update-student", async (req, res) => {
   try {
-    const File = req.files.File.tempFilePath
     const val = JSON.parse(req.body.body)
-    console.log(File)
     console.log(val)
-    res.json({ body: val})
+    if (val.updateImage === true) {
+      const File = req.files.File.tempFilePath
+      let result = await uploadLabeledImages([File])
+      if (result.length !== 0) {
+        //save to database
+        val.descriptions = result
+        const udata = await db.students.updateOne({ _id: val._id }, val)
+        console.log(udata)
+      res.status(200).json({ updated: udata.ok === 1 && udata.nModified >= 1 ? true : false })
+      } else {
+        res.json({ msg: "Something went wrong, please try again.", updated: false })
+      }
+      
+    } else {
+      const udata = await db.students.updateOne({ _id: val._id }, val)
+      console.log(udata)
+      res.status(200).json({ updated: udata.ok === 1 && udata.nModified >= 1 ? true : false })
+    }
+
   } catch (err) {
     console.log(err.message)
-    res.status(500).json({ err: err.message })
+    res.status(500).json({ err: err.message, isAdded: false })
   }
 })
+
 
 app.post("/attendance-check", async (req, res) => {
   try {
@@ -165,24 +170,24 @@ app.post("/attendance-check", async (req, res) => {
     const teacher_id = val.teacher_id
     const class_schedule_id = val.class_schedule_id
     const class_schedule_time = val.class_schedule_time
-    
+
     const duration = moment.duration(moment().diff(moment(`${moment().format("MM-DD-YYYY ")}${class_schedule_time}`))).minutes()
     const timeIn = moment().format("MMM-DD-YYYY@hh:mm:ss A")
     console.log(duration)
     //set remarks
-    const remarks = duration>30? `${duration} minutes LATE` : "PRESENT"
+    const remarks = duration > 30 ? `${duration} minutes LATE` : "PRESENT"
     console.log(remarks)
     let result = await getDescriptorsFromDB(File);
-    if(result.length!==0){
+    if (result.length !== 0) {
       const rslt = result[0]
       const _id = rslt._label
       let msg
       //identify if attending student is just borrowing for attendance
-      if(_id!==student_id){
+      if (_id !== student_id) {
         //borrowed phone for attendance
-        msg =  `Successfully Participated! Note: Account login is not the same with the face recognized`
+        msg = `Successfully Participated! Note: Account login is not the same with the face recognized`
       } else {
-        msg =  `Successfully Participated!`
+        msg = `Successfully Participated!`
       }
       const conf = rslt._distance
       const studInfo = await db.students.findOne({ _id: _id }).select('-_id').lean()
@@ -195,11 +200,11 @@ app.post("/attendance-check", async (req, res) => {
         remarks: remarks
       })
       await data.save()
-      res.json({ timeIn: timeIn, remark: remarks, confidence: conf !== 0? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
+      res.json({ timeIn: timeIn, remark: remarks, confidence: conf !== 0 ? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
     } else {
       res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
     }
-    
+
   } catch (err) {
     console.log(err.message)
     res.status(500)
@@ -211,22 +216,23 @@ app.post("/test-attendance", async (req, res) => {
     const File = req.files.File.tempFilePath;
 
     let result = await getDescriptorsFromDB(File);
-    if(result.length!==0){
+    if (result.length !== 0) {
       const rslt = result[0]
       const _id = rslt._label
       const conf = rslt._distance
       const studInfo = await db.students.findOne({ _id: _id }).select('name').lean()
-      
-      res.json({ name: studInfo.name, confidence: conf !== 0? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
+
+      res.json({ name: studInfo.name, confidence: conf !== 0 ? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
     } else {
       res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
     }
-    
+
   } catch (err) {
     console.log(err.message)
     res.status(500)
   }
 });
+
 
 app.post("/get", async (req, res) => {
   try {
@@ -234,8 +240,9 @@ app.post("/get", async (req, res) => {
     const col = val.col
     const select = val.select
     const query = val.query
-
-    const result = await db[col].find(query).select(select).lean()
+    const join = val.join
+    var rslt = await db[col].find(query)
+    const result = await db[col].populate(rslt, { path: join!==undefined? join : "", select: select })
     res.status(200).json({ result: result })
   } catch (err) {
     console.log(err.message)
@@ -243,15 +250,24 @@ app.post("/get", async (req, res) => {
   }
 })
 
+
+function isJSON(val){
+  try {
+    return [true, JSON.parse(val)]
+  } catch (err) {
+    //console.log(err.message)
+    return [false, null]
+  }
+}
 app.post("/insert", async (req, res) => {
   try {
     const val = req.body
-    console.log(val)
+    //console.log(val)
     const col = val.col
     const data = val.data
-    const nd =  new db[col](data)
+    const nd = new db[col](data)
     const nnd = await nd.save()
-    res.status(200).json({ inserted: nd===nnd, data: nnd })
+    res.status(200).json({ inserted: nd === nnd, data: nnd })
   } catch (err) {
     console.log(err.message)
     res.status(500)
@@ -266,13 +282,26 @@ app.post("/update", async (req, res) => {
     const query = val.query
     const udata = await db[col].updateOne(query, data)
 
-    res.status(200).json({ updated: udata.ok === 1 && udata.nModified >=1? true : false })
+    res.status(200).json({ updated: udata.ok === 1 && udata.nModified >= 1 ? true : false })
   } catch (err) {
     console.log(err.message)
     res.status(500)
   }
 })
 
+app.post("/remove", async (req,res) => {
+  try {
+    const val = req.body
+    const col = val.col
+    const _id = val._id
+    const d = await db[col].deleteOne({ _id: _id })
+    
+    res.status(200).json({ deleted: true, data: d })
+  } catch (err) {
+    console.log(err.message)
+    res.status(500)
+  }
+})
 // add your mongo key instead of the ***
 mongoose
   .connect(

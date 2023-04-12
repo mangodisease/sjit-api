@@ -11,11 +11,18 @@ const students = new mongoose.Schema({
     birthdate: { type: String, required: true },
     parent: { type: String, required: true },
     parent_contact: { type: String, required: true },
-    image: { type: Buffer },
+    image: { type: String },
     descriptions: {
         type: Array,
         required: true,
     },
+    username: {
+        type: String,
+        required: true,
+        unique: true,
+    },
+    password: { type: String, required: true },
+    status: { type: String, default: "enrolled" }
 },
     {
         strict: false,
