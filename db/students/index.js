@@ -8,6 +8,7 @@ const students = new mongoose.Schema({
     },
     course: { type: String, required: true },
     year_level: { type: String, required: true },
+    section: { type: String, required: false },
     birthdate: { type: String, required: true },
     parent: { type: String, required: true },
     parent_contact: { type: String, required: true },
