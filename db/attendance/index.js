@@ -1,8 +1,8 @@
 const mongoose = require('mongoose')
 //PRESENT, LATE
 const attendance = new mongoose.Schema({
-    timeIn: { type: String, required: true },
-    timeOut: { type: String, required: true },
+    time: { type: String, required: true },
+    what: { type: String, required: true },
     student: {type: mongoose.Schema.Types.ObjectId, ref: "students"},
     teacher: {type: mongoose.Schema.Types.ObjectId, ref: "teachers"},
     class_schedule: {type: mongoose.Schema.Types.ObjectId, ref: "class_schedule"},

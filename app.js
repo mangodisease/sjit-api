@@ -7,6 +7,7 @@ const fileUpload = require("express-fileupload");
 const moment = require("moment");
 const bcrypt = require("bcrypt")
 const cors = require("cors")
+const { getTimeDiff } = require("time-difference-js");
 
 const db = require("./db")
 
@@ -20,7 +21,7 @@ app.use(
   })
 );
 
-app.use(express.json({limit: '50mb'}));
+app.use(express.json({ limit: '50mb' }));
 //app.use(express.urlencoded({limit: '50mb'}));
 
 app.use(cors())
@@ -61,7 +62,7 @@ async function uploadLabeledImages(images) {
 async function getDescriptorsFromDB(image) {
   // Get all the face data from mongodb and loop through each of them to read the data
   let faces = await db.students.find().select("_id name descriptions").lean();
-  console.log(faces)
+  //console.log(faces)
   for (i = 0; i < faces.length; i++) {
     // Change the face data descriptors from Objects to Float32Array type
     for (j = 0; j < faces[i].descriptions.length; j++) {
@@ -96,14 +97,14 @@ app.post("/login", async (req, res) => {
     const password = val.password
     const col = val.col
     console.log(col)
-    const user = await db[col].findOne({ username: username, password: password })
+    let user = await db[col].find({ username: username, password: password })
     console.log(user)
-    if (user !== undefined) {
-      res.status(200).json({ login: true, msg: "Successfuly Login", user: user })
+    if (user.length > 0) {
+      res.status(200).json({ login: true, msg: "Successfuly Login", user: user[0] })
     } else {
       res.status(201).json({ login: false, msg: "Invalid username!", user: null })
     }
-  } catch (err) { 
+  } catch (err) {
     console.log(err.message)
     res.status(500)
   }
@@ -143,11 +144,11 @@ app.post("/update-student", async (req, res) => {
         val.descriptions = result
         const udata = await db.students.updateOne({ _id: val._id }, val)
         console.log(udata)
-      res.status(200).json({ updated: udata.ok === 1 && udata.nModified >= 1 ? true : false })
+        res.status(200).json({ updated: udata.ok === 1 && udata.nModified >= 1 ? true : false })
       } else {
         res.json({ msg: "Something went wrong, please try again.", updated: false })
       }
-      
+
     } else {
       const udata = await db.students.updateOne({ _id: val._id }, val)
       console.log(udata)
@@ -164,16 +165,23 @@ app.post("/update-student", async (req, res) => {
 app.post("/attendance-check", async (req, res) => {
   try {
     const File = req.files.File.tempFilePath;
-    const val = req.body
+    console.log(req.body.val)
+    const val = JSON.parse(req.body.val)
 
     const student_id = val.student_id
     const teacher_id = val.teacher_id
     const class_schedule_id = val.class_schedule_id
     const class_schedule_time = val.class_schedule_time
+    const what = val.what
 
-    const duration = moment.duration(moment().diff(moment(`${moment().format("MM-DD-YYYY ")}${class_schedule_time}`))).minutes()
-    const timeIn = moment().format("MMM-DD-YYYY@hh:mm:ss A")
-    console.log(duration)
+    const today = moment().format("MM/DD/YYYY HH:MM:SS")
+    const startDate = new Date(today);
+    const endDate = new Date(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY HH:MM:SS"));
+ 
+    const dur = getTimeDiff(startDate, endDate);
+    console.log(dur)
+    const duration = 0//moment.duration(moment().diff(moment(`${today} ${class_schedule_time}`))).minutes()
+    const time = moment().format("MMM-DD-YYYY @ hh:mm:ss A")
     //set remarks
     const remarks = duration > 30 ? `${duration} minutes LATE` : "PRESENT"
     console.log(remarks)
@@ -183,24 +191,30 @@ app.post("/attendance-check", async (req, res) => {
       const _id = rslt._label
       let msg
       //identify if attending student is just borrowing for attendance
-      if (_id !== student_id) {
-        //borrowed phone for attendance
-        msg = `Successfully Participated! Note: Account login is not the same with the face recognized`
+      if (_id === 'unknown') {
+        res.status(200).json({ msg: "Unregistered face detected!" })
       } else {
-        msg = `Successfully Participated!`
+        if (_id !== student_id) {
+          //borrowed phone for attendance
+          msg = `Successfully Participated! Note: Account login is not the same with the face recognized`
+        } else {
+          msg = `Successfully Participated!`
+        }
+        const conf = rslt._distance
+        console.log(conf)
+        const studInfo = await db.students.findOne({ _id: _id }).select('_id name').lean()
+        console.log(studInfo)
+        const data = new db.attendance({
+          what: what,
+          time: time,
+          student: studInfo._id,
+          teacher: teacher_id,
+          class_schedule: class_schedule_id,
+          remarks: remarks
+        })
+        await data.save()
+        res.json({ msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 ? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
       }
-      const conf = rslt._distance
-      const studInfo = await db.students.findOne({ _id: _id }).select('-_id').lean()
-      console.log(studInfo)
-      const data = new db.attendance({
-        timeIn: timeIn,
-        student: studInfo._id,
-        teacher: teacher_id,
-        class_schedule: class_schedule_id,
-        remarks: remarks
-      })
-      await data.save()
-      res.json({ timeIn: timeIn, remark: remarks, confidence: conf !== 0 ? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
     } else {
       res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
     }
@@ -242,7 +256,7 @@ app.post("/get", async (req, res) => {
     const query = val.query
     const join = val.join
     var rslt = await db[col].find(query)
-    const result = await db[col].populate(rslt, { path: join!==undefined? join : "", select: select })
+    const result = await db[col].populate(rslt, { path: join !== undefined ? join : "", select: select })
     res.status(200).json({ result: result })
   } catch (err) {
     console.log(err.message)
@@ -251,7 +265,7 @@ app.post("/get", async (req, res) => {
 })
 
 
-function isJSON(val){
+function isJSON(val) {
   try {
     return [true, JSON.parse(val)]
   } catch (err) {
@@ -289,13 +303,13 @@ app.post("/update", async (req, res) => {
   }
 })
 
-app.post("/remove", async (req,res) => {
+app.post("/remove", async (req, res) => {
   try {
     const val = req.body
     const col = val.col
     const _id = val._id
     const d = await db[col].deleteOne({ _id: _id })
-    
+
     res.status(200).json({ deleted: true, data: d })
   } catch (err) {
     console.log(err.message)
