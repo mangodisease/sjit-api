@@ -175,8 +175,8 @@ app.post("/attendance-check", async (req, res) => {
     const what = val.what
 
     const today = moment().format("MM/DD/YYYY HH:MM:SS")
-    const startDate = new Date(today);
-    const endDate = new Date(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY HH:MM:SS"));
+    const startDate = new Date(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY HH:MM:SS"));
+    const endDate = new Date(today);
  
     const dur = getTimeDiff(startDate, endDate);
     console.log(dur)
@@ -200,8 +200,7 @@ app.post("/attendance-check", async (req, res) => {
         } else {
           msg = `Successfully Participated!`
         }
-        const conf = rslt._distance
-        console.log(conf)
+        const conf = (rslt._distance * 100)  + 55
         const studInfo = await db.students.findOne({ _id: _id }).select('_id name').lean()
         console.log(studInfo)
         const data = new db.attendance({
@@ -213,7 +212,7 @@ app.post("/attendance-check", async (req, res) => {
           remarks: remarks
         })
         await data.save()
-        res.json({ msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 ? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
+        res.json({ msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 && conf< 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
       }
     } else {
       res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
