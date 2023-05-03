@@ -195,24 +195,24 @@ app.post("/attendance-check", async (req, res) => {
         res.status(200).json({ msg: "Unregistered face detected!" })
       } else {
         if (_id !== student_id) {
-          //borrowed phone for attendance
-          msg = `Successfully Participated! Note: Account login is not the same with the face recognized`
+          res.status(200).json({ msg: "Face detected is not recognized! Please try again." })
         } else {
           msg = `Successfully Participated!`
+          const conf = (rslt._distance * 100)  + 55
+          const studInfo = await db.students.findOne({ _id: _id }).select('_id name').lean()
+          console.log(studInfo)
+          const data = new db.attendance({
+            what: what,
+            time: time,
+            student: studInfo._id,
+            teacher: teacher_id,
+            class_schedule: class_schedule_id,
+            remarks: remarks
+          })
+          await data.save()
+          res.json({ msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 && conf< 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
         }
-        const conf = (rslt._distance * 100)  + 55
-        const studInfo = await db.students.findOne({ _id: _id }).select('_id name').lean()
-        console.log(studInfo)
-        const data = new db.attendance({
-          what: what,
-          time: time,
-          student: studInfo._id,
-          teacher: teacher_id,
-          class_schedule: class_schedule_id,
-          remarks: remarks
-        })
-        await data.save()
-        res.json({ msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 && conf< 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
+        
       }
     } else {
       res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
