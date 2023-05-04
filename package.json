@@ -26,6 +26,7 @@
     "mongoose": "^5.12.13",
     "nodemon": "^2.0.20",
     "npm": "^9.5.0",
-    "time-difference-js": "^1.0.1"
+    "time-difference-js": "^1.0.1",
+    "twilio": "^4.10.0"
   }
 }
