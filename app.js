@@ -10,10 +10,6 @@ const cors = require("cors")
 const { getTimeDiff } = require("time-difference-js");
 
 const db = require("./db")
-const accountSid = 'AC74778d94d0651cf9beb28c3bfdec0c90';
-const authToken = '77437be2df83e5fa963f4e4358ccdf86';
-const client = require('twilio')(accountSid, authToken);
-
 
 faceapi.env.monkeyPatch({ Canvas, Image });
 
@@ -167,14 +163,17 @@ app.post("/update-student", async (req, res) => {
 
 app.post("/test-sms", async (req, res) =>{
   try {
-    await client.messages
-          .create({
-              body: `SJIT Notif! <>STUDENT NAME</> particiapated from class!`,
-              messagingServiceSid: 'MG58ed50e958aaf886261ffcbebd0cdd18',
-              to: '+639353154335'
-          })
-          .then(message => console.log(message.sid))
-          .done();
+    const accountSid = 'AC41b119d2cc4d807b823bc33fcb538ce1';
+    const authToken = '28e743bf3035fa644a5adc3342f8c3bf';
+    const client = require('twilio')(accountSid, authToken);
+    client.messages
+      .create({
+          body: 'test',
+          messagingServiceSid: 'MG0bd12dbf0fbb7249179e0a61f98cd946',
+          to: '+639639164108'
+      })
+      .then(message => console.log(message.sid))
+      .done();
     res.status(200).json({ msg: "TEST OK"})
   } catch (err) {
     console.log(err.message)
@@ -221,11 +220,11 @@ app.post("/attendance-check", async (req, res) => {
           const studInfo = await db.students.findOne({ _id: _id }).select('_id name').lean()
           console.log(studInfo)
 
-          client.messages
+          await client.messages
           .create({
               body: `SJIT Notif! ${studInfo.name} particiapated from class!`,
               messagingServiceSid: 'MG58ed50e958aaf886261ffcbebd0cdd18',
-              to: true? '+639353154335': studInfo.parent_contact
+              to: true? '+639639164108': studInfo.parent_contact
           })
           .then(message => console.log(message.sid))
           .done();
