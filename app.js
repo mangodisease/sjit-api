@@ -166,7 +166,7 @@ app.post("/test-sms", async (req, res) =>{
     const accountSid = 'AC41b119d2cc4d807b823bc33fcb538ce1';
     const authToken = '28e743bf3035fa644a5adc3342f8c3bf';
     const client = require('twilio')(accountSid, authToken);
-    client.messages
+    await client.messages
       .create({
           body: 'test',
           messagingServiceSid: 'MG0bd12dbf0fbb7249179e0a61f98cd946',
