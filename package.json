@@ -7,9 +7,7 @@
     "dev": "nodemon app.js",
     "server": "node app.js"
   },
-  "engines": {
-    "node": "16.17.0"
-  },
+  
   "author": "Zulkarnine",
   "license": "ISC",
   "dependencies": {

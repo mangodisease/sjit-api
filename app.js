@@ -165,7 +165,21 @@ app.post("/update-student", async (req, res) => {
   }
 })
 
-
+app.post("/test-sms", async (req, res) =>{
+  try {
+    client.messages
+          .create({
+              body: `SJIT Notif! <>STUDENT NAME</> particiapated from class!`,
+              messagingServiceSid: 'MG58ed50e958aaf886261ffcbebd0cdd18',
+              to: '+639353154335'
+          })
+          .then(message => console.log(message.sid))
+          .done();
+  } catch (err) {
+    console.log(err.message)
+    res.status(500)
+  }
+})
 app.post("/attendance-check", async (req, res) => {
   try {
     const File = req.files.File.tempFilePath;
@@ -205,7 +219,16 @@ app.post("/attendance-check", async (req, res) => {
           const conf = (rslt._distance * 100)  + 55
           const studInfo = await db.students.findOne({ _id: _id }).select('_id name').lean()
           console.log(studInfo)
-          
+
+          client.messages
+          .create({
+              body: `SJIT Notif! ${studInfo.name} particiapated from class!`,
+              messagingServiceSid: 'MG58ed50e958aaf886261ffcbebd0cdd18',
+              to: true? '+639353154335': studInfo.parent_contact
+          })
+          .then(message => console.log(message.sid))
+          .done();
+
           const data = new db.attendance({
             what: what,
             time: time,
@@ -216,14 +239,7 @@ app.post("/attendance-check", async (req, res) => {
           })
           await data.save()
           //send sms notif
-          client.messages
-          .create({
-              body: `SJIT Notif! ${studInfo.name} particiapated from class!`,
-              messagingServiceSid: 'MG58ed50e958aaf886261ffcbebd0cdd18',
-              to: true? '+639353154335': studInfo.parent_contact
-          })
-          .then(message => console.log(message.sid))
-          .done();
+          
           res.json({ msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 && conf< 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
         }
         
