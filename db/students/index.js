@@ -1,6 +1,11 @@
 const mongoose = require('mongoose')
 
 const students = new mongoose.Schema({
+    std_id: {
+        type: String,
+        required: true,
+        unique: true,
+    },
     name: {
         type: String,
         required: true,
