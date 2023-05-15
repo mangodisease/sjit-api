@@ -167,7 +167,7 @@ app.post("/update-student", async (req, res) => {
 
 app.post("/test-sms", async (req, res) =>{
   try {
-    client.messages
+    await client.messages
           .create({
               body: `SJIT Notif! <>STUDENT NAME</> particiapated from class!`,
               messagingServiceSid: 'MG58ed50e958aaf886261ffcbebd0cdd18',
@@ -175,6 +175,7 @@ app.post("/test-sms", async (req, res) =>{
           })
           .then(message => console.log(message.sid))
           .done();
+    res.status(200).json({ msg: "TEST OK"})
   } catch (err) {
     console.log(err.message)
     res.status(500)
