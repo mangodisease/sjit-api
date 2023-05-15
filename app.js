@@ -1,3 +1,4 @@
+require('dotenv').config() 
 const express = require("express");
 const faceapi = require("face-api.js");
 const mongoose = require("mongoose");
@@ -6,10 +7,16 @@ const canvas = require("canvas");
 const fileUpload = require("express-fileupload");
 const moment = require("moment");
 const bcrypt = require("bcrypt")
+const twilio = require('twilio');
 const cors = require("cors")
 const { getTimeDiff } = require("time-difference-js");
 
 const db = require("./db")
+
+const accountSid = process.env.sid
+const authToken = process.env.at
+console.log(accountSid)
+const client = twilio(accountSid, authToken);
 
 faceapi.env.monkeyPatch({ Canvas, Image });
 
@@ -89,6 +96,26 @@ async function getDescriptorsFromDB(image) {
   return results;
 }
 
+app.post("/test-sms", async (req, res) =>{
+  try {
+
+    client.messages 
+      .create({
+          body: 'test',
+          messagingServiceSid: process.env.msid, 
+          to: '+639639164108'
+      })
+      .then(message => {
+        console.log(message.sid);
+        res.status(200).json({ msg: "TEST OK"})
+      })
+    
+  } catch (err) {
+    console.log(err.message)
+    res.status(500)
+  }
+})
+
 app.post("/login", async (req, res) => {
   try {
     const val = req.body
@@ -161,25 +188,7 @@ app.post("/update-student", async (req, res) => {
   }
 })
 
-app.post("/test-sms", async (req, res) =>{
-  try {
-    const accountSid = 'AC41b119d2cc4d807b823bc33fcb538ce1';
-    const authToken = '28e743bf3035fa644a5adc3342f8c3bf';
-    const client = require('twilio')(accountSid, authToken);
-    await client.messages
-      .create({
-          body: 'test',
-          messagingServiceSid: 'MG0bd12dbf0fbb7249179e0a61f98cd946',
-          to: '+639639164108'
-      })
-      .then(message => console.log(message.sid))
-      .done();
-    res.status(200).json({ msg: "TEST OK"})
-  } catch (err) {
-    console.log(err.message)
-    res.status(500)
-  }
-})
+
 app.post("/attendance-check", async (req, res) => {
   try {
     const File = req.files.File.tempFilePath;
@@ -219,15 +228,17 @@ app.post("/attendance-check", async (req, res) => {
           const conf = (rslt._distance * 100)  + 55
           const studInfo = await db.students.findOne({ _id: _id }).select('_id name').lean()
           console.log(studInfo)
-
-          await client.messages
+     
+          const notified = await client.messages
           .create({
               body: `SJIT Notif! ${studInfo.name} particiapated from class!`,
-              messagingServiceSid: 'MG58ed50e958aaf886261ffcbebd0cdd18',
+              messagingServiceSid: process.env.msid, 
               to: true? '+639639164108': studInfo.parent_contact
           })
-          .then(message => console.log(message.sid))
-          .done();
+          .then(message => {
+            console.log(message.sid) 
+            return true
+          })
 
           const data = new db.attendance({
             what: what,
@@ -240,7 +251,7 @@ app.post("/attendance-check", async (req, res) => {
           await data.save()
           //send sms notif
           
-          res.json({ msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 && conf< 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
+          res.json({ notified: notified, msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 && conf< 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
         }
         
       }
@@ -254,6 +265,36 @@ app.post("/attendance-check", async (req, res) => {
   }
 });
 
+app.post("/get-attendance-report", async(req, res)=>{
+  try {
+    const val = req.body
+    const csID = val.csID
+    const join = val.join
+    const select = val.select
+    var date = moment(val.date)
+    date = date.add(1, "days")
+    date = moment(date).format("MM-DD-YYYY")
+    const dateF = moment(val.date).format("MM-DD-YYYY")
+    const qS  = [
+      {
+          $match: {
+            $and: [ 
+              { "createdAt": { $gte: new Date(dateF) } },
+              { "createdAt": { $lte: new Date(date) }  },
+              
+            ],
+          }, 
+      }
+  ]
+  console.log(JSON.stringify(qS))
+    const rslt = await db.attendance.aggregate(qS)
+    const result = await db.attendance.populate(rslt, { path: join !== undefined ? join : "", select: select })
+    res.json({ result: result })
+  } catch (err) {
+    console.log(err.message)
+    res.status(500)
+  }
+})
 app.post("/test-attendance", async (req, res) => {
   try {
     const File = req.files.File.tempFilePath;
