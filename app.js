@@ -325,8 +325,8 @@ app.post("/get", async (req, res) => {
     const select = val.select
     const query = val.query
     const join = val.join
-    var rslt = await db[col].find(query)
-    const result = await db[col].populate(rslt, { path: join !== undefined ? join : "", select: select })
+    var rslt = await db[col].find(query).select(select)
+    const result = await db[col].populate(rslt, { path: join !== undefined ? join : "" })
     res.status(200).json({ result: result })
   } catch (err) {
     console.log(err.message)
@@ -334,6 +334,17 @@ app.post("/get", async (req, res) => {
   }
 })
 
+app.post("/get-student-image", async(req, res)=>{
+  try {
+    const val = req.body
+    const result = await db.students.find({ _id: val._id}).select("-_id image")
+    console.log(result)
+    res.json({ image: result[0].image })
+  } catch (err) {
+    console.log(err.message)
+    res.json({ image: null })
+  }
+})
 
 function isJSON(val) {
   try {
