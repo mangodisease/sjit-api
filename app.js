@@ -400,7 +400,7 @@ app.post("/remove", async (req, res) => {
 // add your mongo key instead of the ***
 mongoose
   .connect(
-    `mongodb+srv://sjit:pass@attendance.3txyowa.mongodb.net/sjit`,
+    `mongodb+srv://sjit:pass@cluster0.suax5r5.mongodb.net/sjit`,
     {
       useNewUrlParser: true,
       useUnifiedTopology: true,
