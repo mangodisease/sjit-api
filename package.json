@@ -24,6 +24,7 @@
     "face-api.js": "^0.22.2",
     "install": "^0.13.0",
     "moment": "^2.29.4",
+    "moment-timezone": "^0.5.43",
     "mongoose": "^5.12.13",
     "nodemon": "^2.0.20",
     "npm": "^9.5.0",

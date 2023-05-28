@@ -1,15 +1,18 @@
-require('dotenv').config() 
+require('dotenv').config()
 const express = require("express");
 const faceapi = require("face-api.js");
 const mongoose = require("mongoose");
 const { Canvas, Image } = require("canvas");
 const canvas = require("canvas");
 const fileUpload = require("express-fileupload");
-const moment = require("moment");
+const moment = require("moment-timezone");
+moment.tz.setDefault("Asia/Manila");
 const bcrypt = require("bcrypt")
 const twilio = require('twilio');
 const cors = require("cors")
 const { getTimeDiff } = require("time-difference-js");
+
+const ObjectId = require('mongoose').Types.ObjectId;
 
 const db = require("./db")
 
@@ -66,9 +69,9 @@ async function uploadLabeledImages(images) {
   }
 }
 
-async function getDescriptorsFromDB(image) {
+async function getDescriptorsFromDB(student_id, image) {
   // Get all the face data from mongodb and loop through each of them to read the data
-  let faces = await db.students.find().select("_id name descriptions").lean();
+  let faces = await db.students.find({ _id: student_id }).select("_id name descriptions").lean();
   //console.log(faces)
   for (i = 0; i < faces.length; i++) {
     // Change the face data descriptors from Objects to Float32Array type
@@ -96,20 +99,20 @@ async function getDescriptorsFromDB(image) {
   return results;
 }
 
-app.post("/test-sms", async (req, res) =>{
+app.post("/test-sms", async (req, res) => {
   try {
 
-    client.messages 
+    client.messages
       .create({
-          body: 'test',
-          messagingServiceSid: process.env.msid, 
-          to: '+639639164108'
+        body: 'test',
+        messagingServiceSid: process.env.msid,
+        to: '+639639164108'
       })
       .then(message => {
         console.log(message.sid);
-        res.status(200).json({ msg: "TEST OK"})
+        res.status(200).json({ msg: "TEST OK" })
       })
-    
+
   } catch (err) {
     console.log(err.message)
     res.status(500)
@@ -192,131 +195,144 @@ app.post("/update-student", async (req, res) => {
 app.post("/attendance-check", async (req, res) => {
   try {
     const File = req.files.File.tempFilePath;
-    console.log(req.body.val)
     const val = JSON.parse(req.body.val)
 
-    const student_id = val.student_id
+    const student = val.student
+    const student_id = student._id
     const teacher_id = val.teacher_id
     const class_schedule_id = val.class_schedule_id
     const class_schedule_time = val.class_schedule_time
     const what = val.what
+    const today = moment().format("MM/DD/YYYY")
+    console.log(today)
+    console.log(class_schedule_time)
+    console.log(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY hh:mm:ss a"))
+    const startTime = new Date(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY hh:mm:ss a"));
+    const endTime = new Date(moment().format("MM/DD/YYYY hh:mm:ss a"))
 
-    const today = moment().format("MM/DD/YYYY HH:MM:SS")
-    const startDate = new Date(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY HH:MM:SS"));
-    const endDate = new Date(today);
- 
-    const dur = getTimeDiff(startDate, endDate);
+    const dur = getTimeDiff(startTime, endTime);
     console.log(dur)
-    const duration = 0//moment.duration(moment().diff(moment(`${today} ${class_schedule_time}`))).minutes()
-    const time = moment().format("MMM-DD-YYYY @ hh:mm:ss A")
-    //set remarks
-    const remarks = duration > 30 ? `${duration} minutes LATE` : "PRESENT"
-    console.log(remarks)
-    let result = await getDescriptorsFromDB(File);
-    if (result.length !== 0) {
-      const rslt = result[0]
-      const _id = rslt._label
-      let msg
-      //identify if attending student is just borrowing for attendance
-      if (_id === 'unknown') {
-        res.status(200).json({ msg: "Unregistered face detected!" })
-      } else {
-        if (_id !== student_id) {
-          res.status(200).json({ msg: "Face detected is not recognized! Please try again." })
-        } else {
-          msg = `Successfully Participated!`
-          const conf = (rslt._distance * 100)  + 55
-          const studInfo = await db.students.findOne({ _id: _id }).select('_id name').lean()
-          console.log(studInfo)
-     
-          const notified = await client.messages
-          .create({
-              body: `SJIT Notif! ${studInfo.name} particiapated from class!`,
-              messagingServiceSid: process.env.msid, 
-              to: true? '+639639164108': studInfo.parent_contact
-          })
-          .then(message => {
-            console.log(message.sid) 
-            return true
-          })
-
-          const data = new db.attendance({
-            what: what,
-            time: time,
-            student: studInfo._id,
-            teacher: teacher_id,
-            class_schedule: class_schedule_id,
-            remarks: remarks
-          })
-          await data.save()
-          //send sms notif
-          
-          res.json({ notified: notified, msg: msg, name: studInfo.name, time: time, remark: remarks, confidence: conf !== 0 && conf< 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
-        }
-        
-      }
+    //dur.suffix!=="minutes"
+    if (dur.suffix!=="minutes") {
+      res.status(200).json({ msg: `Unable to attend! Class schedule has passed around ${dur.value} ${dur.suffix}` })
     } else {
-      res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
-    }
+      const duration = dur.value
+      const time = moment().format("MMM-DD-YYYY @ hh:mm:ss A")
+      console.log(time)
+      //set remarks
+      const remarks = duration > 30 ? `${duration} minutes LATE` : "PRESENT"
+      console.log(remarks)
+      let result = await getDescriptorsFromDB(student_id, File);
+      if (result.length !== 0) {
+        const rslt = result[0]
+        const _id = rslt._label
+        let msg
+        //identify if attending student is just borrowing for attendance
+        if (_id === 'unknown') {
+          res.status(200).json({ msg: "Unregistered face detected!" })
+        } else {
+          if (_id !== student_id) {
+            res.status(200).json({ msg: "Face detected is not recognized! Please try again." })
+          } else {
+            msg = `Successfully Participated!`
+            const conf = (rslt._distance * 100) + 55
+            const notified = await client.messages
+              .create({
+                body: `SJIT Notif! ${student.name} particiapated from class!`,
+                messagingServiceSid: process.env.msid,
+                to: true ? '+639639164108' : student.parent_contact
+              })
+              .then(message => {
+                console.log(message.sid)
+                return true
+              })
 
+            const data = new db.attendance({
+              what: what,
+              time: time,
+              student: student._id,
+              teacher: teacher_id,
+              class_schedule: class_schedule_id,
+              remarks: remarks
+            })
+            await data.save()
+            //send sms notif
+
+            res.json({ notified: notified, msg: msg, name: student.name, time: time, remark: remarks, confidence: conf !== 0 && conf < 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
+          }
+
+        }
+      } else {
+        res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
+      }
+    }
   } catch (err) {
     console.log(err.message)
     res.status(500)
   }
 });
 
-app.post("/get-attendance-report", async(req, res)=>{
+app.post("/get-attendance-report", async (req, res) => {
   try {
     const val = req.body
-    const csID = val.csID
+    const query = val.query
     const join = val.join
     const select = val.select
     var date = moment(val.date)
     date = date.add(1, "days")
     date = moment(date).format("MM-DD-YYYY")
     const dateF = moment(val.date).format("MM-DD-YYYY")
-    const qS  = [
+    console.log({ class_schedule: new ObjectId(query.class_schedule) })
+    const qS = [
       {
-          $match: {
-            $and: [ 
-              { "createdAt": { $gte: new Date(dateF) } },
-              { "createdAt": { $lte: new Date(date) }  },
-              
-            ],
-          }, 
+        $match: {
+          $and: [
+            { "createdAt": { $gte: new Date(dateF) } },
+            { "createdAt": { $lte: new Date(date) } },
+          ],
+
+        },
       }
-  ]
-  console.log(JSON.stringify(qS))
+    ]
     const rslt = await db.attendance.aggregate(qS)
     const result = await db.attendance.populate(rslt, { path: join !== undefined ? join : "", select: select })
-    res.json({ result: result })
+    console.log(result[0])
+    console.log(val.csID)
+    var l = []
+    if (result.length > 0) {
+      for (let i = 0; i < result.length; i++) {
+        const v = result[i]
+        if (v.class_schedule._id.toString() === val.csID) {
+          if (i === 1) {
+            l.push({
+              subject: v.class_schedule.subject,
+              teacher: v.teacher.name,
+              schedule_date: v.class_schedule.days.join(" "),
+              schedule_time: `${moment(v.class_schedule.time[0]).format("hh:mm A")} - ${moment(v.class_schedule.time[1]).format("hh:mm A")}`,
+              student_id: v.student.std_id,
+              student: v.student.name,
+              date: moment(v.time).format("MM-DD-YYYY"), timeIn: moment(v.time).format("hh:mm:ss A"),
+              remarks: v.remarks
+            })
+          } else {
+            l.push({
+              student_id: v.student.std_id,
+              student: v.student.name,
+              date: moment(v.time).format("MM-DD-YYYY"), timeIn: moment(v.time).format("hh:mm:ss A"),
+              remarks: v.remarks
+            })
+          }
+        }
+      }
+    }
+    const present = l.filter(({ remarks }) => remarks === "PRESENT")
+    const late = l.filter(({ remarks }) => remarks.toLowerCase().includes("late"))
+    res.json({ result: l, present: present, late: late })
   } catch (err) {
     console.log(err.message)
     res.status(500)
   }
 })
-app.post("/test-attendance", async (req, res) => {
-  try {
-    const File = req.files.File.tempFilePath;
-
-    let result = await getDescriptorsFromDB(File);
-    if (result.length !== 0) {
-      const rslt = result[0]
-      const _id = rslt._label
-      const conf = rslt._distance
-      const studInfo = await db.students.findOne({ _id: _id }).select('name').lean()
-
-      res.json({ name: studInfo.name, confidence: conf !== 0 ? `${(conf * 100 + 20).toFixed(2)}%` : "99.9%" });
-    } else {
-      res.status(200).json({ msg: "Unable to detect or recognized face! Please try again." })
-    }
-
-  } catch (err) {
-    console.log(err.message)
-    res.status(500)
-  }
-});
-
 
 app.post("/get", async (req, res) => {
   try {
@@ -334,10 +350,10 @@ app.post("/get", async (req, res) => {
   }
 })
 
-app.post("/get-student-image", async(req, res)=>{
+app.post("/get-student-image", async (req, res) => {
   try {
     const val = req.body
-    const result = await db.students.find({ _id: val._id}).select("-_id image")
+    const result = await db.students.find({ _id: val._id }).select("-_id image")
     console.log(result)
     res.json({ image: result[0].image })
   } catch (err) {
