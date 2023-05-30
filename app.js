@@ -272,6 +272,29 @@ app.post("/attendance-check", async (req, res) => {
   }
 });
 
+app.post("/get-enrolled-students", async (req, res) =>{
+  try {
+    const val = req.body
+    const query = val.query
+    const join = val.join
+    const select = val.select
+
+    const result = await db.enrolled.find(query).select(select).populate(join)
+    var list = []
+    if(result.length>0){
+      for(let i=0; i<result.length; i++){
+        const v = result[i]
+        var stud = v.student
+        list.push({ _id: stud._id, std_id: stud.std_id, name: stud.name, birthdate: stud.birthdate  })
+      }
+    }
+    res.status(200).json({ result: list })
+  } catch (err) {
+    console.log(err.message)
+    res.status(500)
+  }
+})
+
 app.post("/get-attendance-report", async (req, res) => {
   try {
     const val = req.body
