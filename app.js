@@ -153,12 +153,12 @@ app.post("/add-student", async (req, res) => {
       console.log(n)
       res.json({ msg: "Student Successfully Added", isAdded: true })
     } else {
-      res.json({ msg: "Something went wrong, please try again.", isAdded: false })
+      res.json({ msg: "Unable to detect face, please try another image!", isAdded: false })
 
     }
   } catch (err) {
     console.log(err.message)
-    res.status(500).json({ err: err.message, isAdded: false })
+    res.status(500).json({ err: "Unable to detect face, please try another image!", isAdded: false })
   }
 })
 
