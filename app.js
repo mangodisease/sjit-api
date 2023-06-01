@@ -213,7 +213,7 @@ function reExtract(str, lmt)
   }
 }
 
-function checkNumber(n){
+function checkNumber(str){
   let rxMatchNonDigits = /[^\d]+/g;
 	// Remove all non-digits
 	str = str.replace(rxMatchNonDigits,"");
