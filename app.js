@@ -8,18 +8,14 @@ const fileUpload = require("express-fileupload");
 const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Manila");
 const bcrypt = require("bcrypt")
-const twilio = require('twilio');
+const axios = require("axios")
+
 const cors = require("cors")
 const { getTimeDiff } = require("time-difference-js");
 
 const ObjectId = require('mongoose').Types.ObjectId;
 
-const db = require("./db")
-
-const accountSid = process.env.sid
-const authToken = process.env.at
-console.log(accountSid)
-const client = twilio(accountSid, authToken);
+const db = require("./db");
 
 faceapi.env.monkeyPatch({ Canvas, Image });
 
@@ -34,7 +30,7 @@ app.use(
 app.use(express.json({ limit: '50mb' }));
 //app.use(express.urlencoded({limit: '50mb'}));
 
-app.use(cors())
+app.use(cors({ origin: "*" }))
 app.use(express.json())
 
 async function LoadModels() {
@@ -99,20 +95,35 @@ async function getDescriptorsFromDB(student_id, image) {
   return results;
 }
 
+async function SendSMS(to, msg){
+  try {
+    await axios.post('https://api.m360.com.ph/v3/api/broadcast', {
+      "app_key": process.env.app_key,
+      "app_secret": process.env.app_secret,
+      "shortcode_mask" :  process.env.shortcode_mask,
+      "msisdn" : to,
+      "content" : msg,
+      }
+      )
+      .then(r=>{
+        console.log(r.data)
+        return r.data
+      }).catch(err=>{
+        console.log(err.message)
+        return PricingV2VoiceVoiceNumberInboundCallPrice
+      })
+  } catch (error) {
+    return null
+  }
+}
 app.post("/test-sms", async (req, res) => {
   try {
-
-    client.messages
-      .create({
-        body: 'test',
-        messagingServiceSid: process.env.msid,
-        to: '+639639164108'
-      })
-      .then(message => {
-        console.log(message.sid);
-        res.status(200).json({ msg: "TEST OK" })
-      })
-
+    const val = req.body
+    const to = val.to
+    const msg = val.msg
+    //const result = await SendSMS(to, msg)
+    res.status(200).json({ result: null//result 
+    })
   } catch (err) {
     console.log(err.message)
     res.status(500)
@@ -191,6 +202,28 @@ app.post("/update-student", async (req, res) => {
   }
 })
 
+function reExtract(str, lmt)
+{
+	if (str.length >= lmt)
+	{
+		return `${str.substr(0, lmt)}...`;
+	}
+	else {
+    return str;
+  }
+}
+
+function checkNumber(n){
+  let rxMatchNonDigits = /[^\d]+/g;
+	// Remove all non-digits
+	str = str.replace(rxMatchNonDigits,"");
+	if (str.length >= 10)
+	{
+		return str
+	} else {
+    return null;
+  }
+}
 
 app.post("/attendance-check", async (req, res) => {
   try {
@@ -200,6 +233,7 @@ app.post("/attendance-check", async (req, res) => {
     const student = val.student
     const student_id = student._id
     const teacher_id = val.teacher_id
+    const subject = val.subject
     const class_schedule_id = val.class_schedule_id
     const class_schedule_time = val.class_schedule_time
     const what = val.what
@@ -213,7 +247,7 @@ app.post("/attendance-check", async (req, res) => {
     const dur = getTimeDiff(startTime, endTime);
     console.log(dur)
     //dur.suffix!=="minutes"
-    if (dur.suffix!=="minutes") {
+    if (dur.suffix !== "minutes") {
       res.status(200).json({ msg: `Unable to attend! Class schedule has passed around ${dur.value} ${dur.suffix}` })
     } else {
       const duration = dur.value
@@ -236,7 +270,8 @@ app.post("/attendance-check", async (req, res) => {
           } else {
             msg = `Successfully Participated!`
             const conf = (rslt._distance * 100) + 55
-            const notified = await client.messages
+            /**
+             * const notified = await client.messages
               .create({
                 body: `SJIT Notif! ${student.name} particiapated from class!`,
                 messagingServiceSid: process.env.msid,
@@ -246,7 +281,9 @@ app.post("/attendance-check", async (req, res) => {
                 console.log(message.sid)
                 return true
               })
-
+             */
+            const cp_number = checkNumber(student.parent_contact)
+            const notified =  cp_number!== null ? await SendSMS(cp_number, `SJIT ALERT ${reExtract(student.name, 20)} participated class of ${reExtract(subject, 15)} dated ${time}!`) : false
             const data = new db.attendance({
               what: what,
               time: time,
@@ -272,7 +309,7 @@ app.post("/attendance-check", async (req, res) => {
   }
 });
 
-app.post("/get-enrolled-students", async (req, res) =>{
+app.post("/get-enrolled-students", async (req, res) => {
   try {
     const val = req.body
     const query = val.query
@@ -281,11 +318,11 @@ app.post("/get-enrolled-students", async (req, res) =>{
 
     const result = await db.enrolled.find(query).select(select).populate(join)
     var list = []
-    if(result.length>0){
-      for(let i=0; i<result.length; i++){
+    if (result.length > 0) {
+      for (let i = 0; i < result.length; i++) {
         const v = result[i]
         var stud = v.student
-        list.push({ _id: stud._id, std_id: stud.std_id, name: stud.name, birthdate: stud.birthdate  })
+        list.push({ _id: stud._id, std_id: stud.std_id, name: stud.name, birthdate: stud.birthdate })
       }
     }
     res.status(200).json({ result: list })

@@ -51,5 +51,6 @@ POST http://localhost:5000/test-sms
 Content-Type: application/json
 
 {
- 
+    "to": "",
+    "msg": ""
 }
