@@ -243,7 +243,7 @@ app.post("/attendance-check", async (req, res) => {
     const s = `${today} ${class_schedule_time}`
     console.log(s)
     console.log(moment(s).format("MM/DD/YYYY hh:mm:ss a"))
-    const startTime = new Date(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY hh:mm:ss a"));
+    const startTime = new Date(s);
     const endTime = new Date(moment().format("MM/DD/YYYY hh:mm:ss a"))
 
     const dur = getTimeDiff(startTime, endTime);
