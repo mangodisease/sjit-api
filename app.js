@@ -240,7 +240,9 @@ app.post("/attendance-check", async (req, res) => {
     const today = moment().format("MM/DD/YYYY")
     console.log(today)
     console.log(class_schedule_time)
-    console.log(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY hh:mm:ss a"))
+    const s = `${today} ${class_schedule_time}`
+    console.log(s)
+    console.log(moment(s).format("MM/DD/YYYY hh:mm:ss a"))
     const startTime = new Date(moment(`${today} ${class_schedule_time}`).format("MM/DD/YYYY hh:mm:ss a"));
     const endTime = new Date(moment().format("MM/DD/YYYY hh:mm:ss a"))
 
