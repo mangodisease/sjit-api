@@ -7,18 +7,16 @@ const canvas = require("canvas");
 const fileUpload = require("express-fileupload");
 const moment = require("moment-timezone");
 moment.tz.setDefault("Asia/Manila");
-const bcrypt = require("bcrypt")
 const axios = require("axios")
 
-const cors = require("cors")
 const { getTimeDiff } = require("time-difference-js");
 
 const ObjectId = require('mongoose').Types.ObjectId;
-
 const db = require("./db");
 
 faceapi.env.monkeyPatch({ Canvas, Image });
 
+const cors = require("cors")
 const app = express();
 
 app.use(
@@ -27,11 +25,34 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '50mb' }));
-//app.use(express.urlencoded({limit: '50mb'}));
-
+app.use(express.json({ limit: '100mb' }));
 app.use(cors({ origin: "*" }))
-app.use(express.json())
+
+const server = require('http').createServer(app);
+const io = require('socket.io')(server, {
+  maxHttpBufferSize: 10e8,
+  cors: {
+    origin: "*",
+    //credentials: true, //access-control-allow-credentials:true
+    //optionSuccessStatus: 200,
+    methods: ["GET", "POST", "UPDATE"]
+  }
+});
+
+io.on("connection", socket => {
+  console.log("New client connected " + socket.id);
+
+  //call it from kiosk
+  socket.on("sms_sent", data => {
+    const { } = data
+    console.log("sms-sent")
+  });
+
+  socket.on("disconnect", () => {
+    console.log("user disconnected");
+  });
+
+});
 
 async function LoadModels() {
   // Load the models
@@ -97,33 +118,24 @@ async function getDescriptorsFromDB(student_id, image) {
 
 async function SendSMS(to, msg){
   try {
-    await axios.post('https://api.m360.com.ph/v3/api/broadcast', {
-      "app_key": process.env.app_key,
-      "app_secret": process.env.app_secret,
-      "shortcode_mask" :  process.env.shortcode_mask,
-      "msisdn" : to,
-      "content" : msg,
-      }
-      )
-      .then(r=>{
-        console.log(r.data)
-        return r.data
-      }).catch(err=>{
-        console.log(err.message)
-        return PricingV2VoiceVoiceNumberInboundCallPrice
-      })
+    const data = { 
+      to: to, msg: msg
+     }
+    io.sockets.emit("send_sms", data)
+    return true
   } catch (error) {
-    return null
+    io.sockets.emit("send_sms", null)
+    return false
   }
 }
+
 app.post("/test-sms", async (req, res) => {
   try {
     const val = req.body
     const to = val.to
     const msg = val.msg
-    //const result = await SendSMS(to, msg)
-    res.status(200).json({ result: null//result 
-    })
+    SendSMS(to, msg)
+    res.status(200).json({ result: val })
   } catch (err) {
     console.log(err.message)
     res.status(500)
@@ -272,20 +284,11 @@ app.post("/attendance-check", async (req, res) => {
           } else {
             msg = `Successfully Participated!`
             const conf = (rslt._distance * 100) + 55
-            /**
-             * const notified = await client.messages
-              .create({
-                body: `SJIT Notif! ${student.name} particiapated from class!`,
-                messagingServiceSid: process.env.msid,
-                to: true ? '+639639164108' : student.parent_contact
-              })
-              .then(message => {
-                console.log(message.sid)
-                return true
-              })
-             */
+
             const cp_number = checkNumber(student.parent_contact)
-            const notified =  cp_number!== null ? await SendSMS(cp_number, `SJIT ALERT ${reExtract(student.name, 20)} participated class of ${reExtract(subject, 15)} dated ${time}!`) : false
+            const sms_content = `SJIT ALERT ${reExtract(student.name, 20)} participated class of ${reExtract(subject, 15)} dated ${time}!`
+           
+            const notified =  cp_number!== null ?  SendSMS(cp_number, sms_content) : false
             const data = new db.attendance({
               what: what,
               time: time,
@@ -295,8 +298,10 @@ app.post("/attendance-check", async (req, res) => {
               remarks: remarks
             })
             await data.save()
-            //send sms notif
 
+            
+
+            //send sms notif
             res.json({ notified: notified, msg: msg, name: student.name, time: time, remark: remarks, confidence: conf !== 0 && conf < 100 ? `${(conf).toFixed(2)}%` : "99.9%" });
           }
 
@@ -475,7 +480,7 @@ app.post("/remove", async (req, res) => {
     res.status(500)
   }
 })
-// add your mongo key instead of the ***
+
 mongoose
   .connect(
     `mongodb+srv://sjit:pass@cluster0.suax5r5.mongodb.net/sjit`,
@@ -486,8 +491,9 @@ mongoose
     }
   )
   .then(() => {
-    app.listen(process.env.PORT || 5000);
-    console.log("DB connected and server us running.");
+    const port = process.env.PORT || 5000
+    server.listen(port || "0.0.0.0", () => console.log(`Server Started on PORT ${port}`))
+    console.log("DB connected");
   })
   .catch((err) => {
     console.log(err);
